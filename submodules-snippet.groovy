@@ -18,14 +18,9 @@ def stripProtocol(url){
 gitRepoNoProtocol = stripProtocol(gitRepo)
 
 def getProviderFrom(url){
-    // replace http and https
     url = url.replaceAll('https://', '')
     url = url.replaceAll('http://', '')
-
-    // replace ssh
     url = url.replaceAll('git@', '')
-
-    // split by slash
     def parts = url.split('/')
     return parts[0]
 }
@@ -95,9 +90,6 @@ def scmCheckout(){
 
                     # Make sure the submodule is on the correct branch fix the detached HEAD state
                     git -C ${submodule_path} checkout \$(git -C ${submodule_path} remote show origin | awk '/HEAD branch/ {print \$NF}')
-
-                    # Remove the credentials file
-                    rm ~/.git-credentials || true
                 """
                 
             }
@@ -108,6 +100,4 @@ def scmCheckout(){
     // Print revision of each submodule
     echo 'Submodule revisions:'
     sh 'git submodule foreach git rev-parse HEAD'
-
 }
-
