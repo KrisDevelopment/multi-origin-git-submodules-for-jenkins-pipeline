@@ -65,7 +65,24 @@ def scmCheckout(){
         submodule_path = submodules_paths[i]
         submodule_remote = submodule_remotes[i]
 
+        echo "Cleaning submodule ${submodule_path}"
+        sh """
+            # Rm the submodule to avoid conflicts
+            rm -rf ${submodule_path}
+        """
+
         echo "Checking out submodule ${submodule_path} from ${submodule_remote}"
+        
+        // also strip .git from the end of the url, it will be added back in the script
+        if (submodule_remote.endsWith('.git')) {
+            submodule_remote = submodule_remote.substring(0, submodule_remote.length() - 4)
+            echo "Stripped .git from the end of the url ${submodule_remote}"
+        }
+
+        // remove credentials from the url in the form  jenkins:xxxxxxxxxxxx@gitlab.com
+        submodule_remote = submodule_remote.split('@').last()
+        echo "Stripped credentials from the url ${submodule_remote}" 
+
         retry(3) {
             // Explicitly handle submodule initialization and updates
             echo 'Initializing and updating submodules:'
@@ -78,18 +95,23 @@ def scmCheckout(){
             ]) {
                 remote_no_protocol = stripProtocol(submodule_remote)
 
+
                 sh """
                     # Initialize and fetch submodules individually
                     git config submodule.${submodule_path}.url https://${SELFHOSTED_USER}:${SELFHOSTED_PASS}@${remote_no_protocol}.git
                     
                     git submodule set-url ${submodule_path} https://${SELFHOSTED_USER}:${SELFHOSTED_PASS}@${remote_no_protocol}.git
                     git submodule sync --recursive
-                    
+
+                    # Revert any local changes in the submodule to avoid merge conflicts
+                    git -C ${submodule_path} reset --hard HEAD || true
+                    git -C ${submodule_path} clean -fd || true
+
                     # Initialize the submodule and make sure it's on latest HEAD
                     git submodule update --init --recursive --merge --remote ${submodule_path}
 
                     # Make sure the submodule is on the correct branch fix the detached HEAD state
-                    git -C ${submodule_path} checkout \$(git -C ${submodule_path} remote show origin | awk '/HEAD branch/ {print \$NF}')
+                    # git -C ${submodule_path} checkout \$(git -C ${submodule_path} remote show origin | awk '/HEAD branch/ {print \$NF}')
                 """
                 
             }
@@ -99,5 +121,5 @@ def scmCheckout(){
 
     // Print revision of each submodule
     echo 'Submodule revisions:'
-    sh 'git submodule foreach git rev-parse HEAD'
+    sh 'git submodule foreach git rev-parse HEAD || true'
 }
